@@ -1,2 +1,10 @@
 data/
 /CODEX.md
+.venv/
+.uv-cache/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+runs/

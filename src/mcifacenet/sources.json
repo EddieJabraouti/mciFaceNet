@@ -1,0 +1,42 @@
+[
+  {
+    "path": "data/facial_expression_smile/facial_dataset.csv",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/data/facial_expression_smile/facial_dataset.csv",
+    "sha256": "ad11cb005ba91ce5976a4f05d47d081bd242838173e83882def0fdd2c5948e64"
+  },
+  {
+    "path": "data/facial_expression_smile/youtube_PD_features_updated.csv",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/data/facial_expression_smile/youtube_PD_features_updated.csv",
+    "sha256": "d2bd6973e98564ea262dcfe5ff94f178e3e0470c00880a1acd84364ab4130636"
+  },
+  {
+    "path": "data/dev_set_participants.txt",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/data/dev_set_participants.txt",
+    "sha256": "907c3cd943ddfb1b907d38de8452a95d7e51e4da09f9a433f9db646a37b8c30c"
+  },
+  {
+    "path": "data/test_set_participants.txt",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/data/test_set_participants.txt",
+    "sha256": "904c7ba4a5168d887de0effb2965c5fcfc60ab2075725dd6ee07bff1879c4cc7"
+  },
+  {
+    "path": "data/calib_set_participants.txt",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/data/calib_set_participants.txt",
+    "sha256": "ba778e5182d535cbd7fa8755f34664ed2a6f7bbf5fb4e723c1feaec888ed68e7"
+  },
+  {
+    "path": "models/facial_expression_smile_best_auroc_baal/predictive_model/model_config.json",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/models/facial_expression_smile_best_auroc_baal/predictive_model/model_config.json",
+    "sha256": "a6f242c81bfe6ef0f86cba4462be874f2c5be77e30c2153b057ad4f5d67538f4"
+  },
+  {
+    "path": "code/unimodal_models/facial_expression_smile/unimodal_smile_baal.py",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/code/unimodal_models/facial_expression_smile/unimodal_smile_baal.py",
+    "sha256": "2e3431067b11ab46f3c7a1edbe558c4c27243fedd827923020abf499291b8cdd"
+  },
+  {
+    "path": "LICENSE",
+    "url": "https://raw.githubusercontent.com/ROC-HCI/UFNet/5ece2c65ba184faccf6c8cdccdc03132427c464b/LICENSE",
+    "sha256": "41ad449ead031774dcabfdc1fdb282aab6e39bc0457fd2c727386672672e50e7"
+  }
+]

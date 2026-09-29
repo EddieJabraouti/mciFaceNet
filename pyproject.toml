@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcifacenet"
+version = "0.1.0"
+description = "Classification from released facial movement features"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+train = [
+    "numpy>=2,<3",
+    "scikit-learn>=1.7,<2",
+    "imbalanced-learn>=0.14,<0.15",
+    "torch>=2.8,<3",
+    "xgboost==3.2.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+mcifacenet = "mcifacenet.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
