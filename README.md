@@ -118,7 +118,7 @@ recordings exactly. Local artifacts from this run are in
 ## Facial and typing fusion experiment
 
 The optional fusion experiment combines the 42 facial features with the frozen
-128-dimensional TypeNet embedding of one 50-key typing window. Faces and typing
+128-dimensional TypeNet embedding of one typing window of up to 50 keys. Faces and typing
 windows come from different people and are paired using their shared binary
 label. These are **artificial multimodal cases**, not recordings of the same
 person. No labels are required by the exported inference model.
@@ -203,6 +203,172 @@ The underlying test data had already been inspected in earlier experiments.
 This is an exploratory follow-up, and all pairing evaluations depend on known
 labels when constructing artificial cases. Validating fusion for a real user
 requires genuinely paired facial and typing test observations.
+
+## Fixed participant fusion experiment
+
+The second experiment assigns each typist to exactly one same-label facial
+participant, without sharing either person across synthetic participant pairs.
+Every cached typing window appears once in the fixed dataset and once per
+training epoch. Only row order changes between epochs; a window is never moved
+to another face. When a matched facial person has several recordings, their
+shuffled recordings are cycled across that typist's windows and then fixed.
+Facial features can therefore repeat within the same participant pair.
+
+```sh
+uv run --extra train mcifacenet fusion-train-fixed \
+  --typing-run /path/to/registered/typing/runs/embeddings \
+  --previous-run runs/facial_typing_fusion_v1 \
+  --output runs/facial_typing_fusion_fixed_v1
+```
+
+| Split | Participant pairs | Facial recordings used | Fixed window pairs |
+| --- | ---: | ---: | ---: |
+| Training | 221 | 290 | 8,979 |
+| Validation | 32 | 42 | 1,366 |
+| Test | 64 | 74 | 2,571 |
+
+All eligible typing windows are retained. The source cache includes 9,459 full
+50-key windows and 3,457 padded partial windows. Window counts are not counts
+of independent people. One facial training participant with conflicting labels
+is ineligible for matching; unused facial participants remain outside this run.
+The original participant splits, calibration exclusion, frozen encoder, model
+architectures, three seeds, optimizer settings, and 64-epoch budget are retained.
+
+Training weights each window's loss inversely by its typist's window count, so
+people contribute equally without oversampling. Facial scaling uses only the
+selected training recordings. Checkpoint selection uses validation F1 after
+averaging probabilities within each participant pair, with log loss breaking
+ties. Selection, loss weighting, cohort composition, and the number of updates
+per epoch differ from the earlier experiment; this is not a single-factor
+ablation. The attention checkpoints were selected at epochs 2, 6, and 15.
+
+Attention ensemble results at threshold 0.5, **after averaging probabilities
+within each participant pair**:
+
+| Split | Accuracy | Recall | Precision | F1-score |
+| --- | ---: | ---: | ---: | ---: |
+| Training | 100.0% | 100.0% | 100.0% | 100.0% |
+| Validation | 84.4% | 78.6% | 84.6% | 81.5% |
+| Test | 79.7% | 86.2% | 73.5% | 79.4% |
+
+The same model's individual-window results are:
+
+| Split | Accuracy | Recall | Precision | F1-score |
+| --- | ---: | ---: | ---: | ---: |
+| Training | 99.9% | 100.0% | 99.8% | 99.9% |
+| Validation | 84.4% | 78.2% | 84.6% | 81.3% |
+| Test | 75.2% | 75.9% | 73.0% | 74.4% |
+
+On these same fixed participant pairs, the previous attention model scores
+78.1% test accuracy and 72.0% F1; the newly trained concatenation control scores
+79.7% and 77.2%. At window level, concatenation scores 80.0% accuracy and 77.9%
+F1, exceeding attention's window scores. Prior models retain their original,
+larger facial training pools. These comparisons do not establish a consistent
+advantage for attention across evaluation units.
+
+Perfect training classification and lower held-out scores indicate overfitting.
+There are only 32 validation and 64 test participant pairs, using one fixed
+assignment. Seed ensembling does not measure uncertainty over alternative
+partner assignments. These previously inspected test participants and artificial
+label-matched pairs do not establish real matched-patient performance.
+
+Artifacts in `runs/facial_typing_fusion_fixed_v1/` include both exports,
+train/validation/test pair identities, all model predictions, participant and
+window metrics, source snapshots, full training histories, selection hashes,
+and `verification.json`. Use the existing `fusion-predict` command with the new
+`models/attention.pt` for feature-input inference. Aggregation is an evaluation
+step; the export still returns one probability per input window pair.
+
+## Regularization and sliding-window attention
+
+```sh
+uv run --extra train mcifacenet fusion-regularize \
+  --typing-run /path/to/registered/typing/runs/embeddings \
+  --fixed-run runs/facial_typing_fusion_fixed_v1 \
+  --output runs/facial_typing_fusion_regularized_v1
+```
+
+This experiment retains the exact saved participant and window assignments.
+Four prespecified variants compare regularized two-token fusion, full attention
+over each ordered typing sequence, and local attention with spans of 9 or 17
+keystrokes. Local attention uses a symmetric band mask, following the local
+attention idea described in [Longformer](https://arxiv.org/abs/2004.05150).
+It uses a dense masked implementation for sequences of at most 50 keys, with
+no claim of Longformer's sparse computational efficiency.
+
+Regularization uses width 16/two heads, 35% attention-weight and residual/head
+dropout, 20% input dropout, a 15% chance of dropping one modality during
+training, AdamW weight decay 0.1, and label smoothing 0.05. The learning rate
+is 0.0005, with gradient clipping at 1.0. Checkpoints and the final candidate
+are selected by participant validation log loss, which penalizes confident
+mistakes; early stopping uses patience eight and minimum improvement 0.0001,
+with a maximum of 48 epochs. Each candidate averages three fixed seed models.
+The prediction threshold remains 0.5; validation/test labels are never smoothed.
+
+Sequence variants retain the frozen 128-coordinate typing embedding and add
+an attention-pooled representation of the five measured per-key features:
+hold, inter-key, press and release latencies, and normalized key code. Original
+source caches are hash-checked and aligned exactly with the registered embedding
+rows. Attention operates within each original window; it never treats embedding
+coordinates or arbitrary participant ordering as a temporal sequence. Facial
+inputs remain recording summaries, without fabricated frame-level dynamics.
+
+All sequence variants share the same inputs and parameter count. Fixed sinusoidal
+positions preserve key order. A training-only scaler balances participants and
+ignores padding; standardized key features are clipped to ±5. Padded keys are
+excluded from attention and pooling. The model's existing face/embedding scalers
+are retained from the fixed-pair run. Full and local masks use PyTorch's
+[MultiheadAttention](https://docs.pytorch.org/docs/stable/generated/torch.nn.modules.activation.MultiheadAttention.html).
+
+The regularized exports use format version 2 and the same `fusion-predict`
+command. Sequence models additionally require `sequence` with shape `[N,50,5]`
+and integer `lengths` with shape `[N]`, ranging from 1 to 50, in the input NPZ.
+Features must follow the export's `sequence_features` order and the source
+TypeNet feature definitions; shorter windows are padded. There is one prediction
+per original window pair, followed by separate participant probability averaging
+for evaluation. No new cross-person pairings or overlapping training examples
+are generated by the sliding attention mask.
+
+All results below average window probabilities within each participant pair
+(221 training, 32 validation, 64 test). The previous fixed-pair models are
+rescored on the exact same inputs.
+
+| Attention variant | Training accuracy | Validation accuracy | Test accuracy | Test F1 |
+| --- | ---: | ---: | ---: | ---: |
+| Previous fixed-pair attention | 100.0% | 84.4% | 79.7% | 79.4% |
+| Regularized two-token fusion | 93.2% | 81.3% | 82.8% | 81.4% |
+| Full keystroke-sequence attention | 92.3% | 81.3% | 84.4% | 82.8% |
+| Sliding attention, span 9 | 92.3% | 81.3% | 84.4% | 82.8% |
+| Sliding attention, span 17 | 92.3% | 81.3% | 84.4% | 82.8% |
+
+Regularized two-token fusion was selected **among the four new candidates** by
+validation log loss before test scoring. Its complete participant metrics are:
+
+| Split | Accuracy | Recall | Precision | F1-score |
+| --- | ---: | ---: | ---: | ---: |
+| Training | 93.2% | 96.0% | 89.7% | 92.8% |
+| Validation | 81.3% | 78.6% | 78.6% | 78.6% |
+| Test | 82.8% | 82.8% | 80.0% | 81.4% |
+
+Its individual-window accuracy/recall/precision/F1 are
+92.6/94.7/89.3/92.0% for training, 81.3/77.8/78.6/78.2% for validation,
+and 80.3/76.3/81.1/78.6% for test. The earlier model still has stronger validation
+accuracy and slightly better validation log loss. The new regularized model's
+train–test accuracy gap falls from 20.3 to 10.4 percentage points, with two more
+test participant pairs and one fewer validation pair correctly classified.
+This does not establish an overall winner or justify test-based promotion.
+
+Full and sliding sequence attention make identical participant classifications,
+with only small differences between individual-window probabilities. There is
+no observed advantage for restricting the attention span. The source sequence
+variants add measured keystroke features as well as changing attention, so their
+comparison with the two-token model is not solely a masking ablation.
+
+The new checkpoints stopped after 15–21 epochs. All four exports and detailed
+window/participant metrics are stored in `runs/facial_typing_fusion_regularized_v1/`.
+`selection.json` identifies the candidate selected by validation, and
+`verification.json` records independent metrics, checkpoint reconstruction,
+pairing preservation, source checks, and CLI/export parity.
 
 ## Checks and attribution
 

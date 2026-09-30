@@ -96,6 +96,55 @@ def load_typing(run):
     return groups, audit
 
 
+def load_typing_sequences(run, groups):
+    """Recover ordered within-window features from the verified parent caches.
+
+    No order across windows or recordings is inferred. Match every source row
+    against the cached embedding and metadata before attaching its sequence.
+    """
+    run = Path(run).resolve()
+    root = run.parents[3]
+    registration = json.loads((run / "registration.json").read_text())
+    parent_paths = list(registration["cached_inputs"])
+    if len(parent_paths) != 1:
+        raise ValueError("Expected one registered real-data parent")
+    parent = root / parent_paths[0]
+    checked(parent, registration["cached_inputs"][parent_paths[0]])
+    parent_registration = parent.with_name("registration.json")
+    parent_meta = json.loads(parent_registration.read_text())
+    checked(parent, parent_meta["dataset_sha256"])
+    pieces, hashes = [], {str(parent_registration.relative_to(root)): sha256(parent_registration)}
+    # JSON insertion order is the original concatenation order; verify it below.
+    for relative, digest in parent_meta["cached_inputs"].items():
+        path = root / relative
+        hashes[relative] = checked(path, digest)
+        with np.load(path, allow_pickle=False) as cache:
+            keep = ~cache["synthetic"] if "synthetic" in cache else np.ones(len(cache["y"]), dtype=bool)
+            pieces.append({k: cache[k][keep] for k in ("sequences", "lengths", "owner", "y", "x")})
+    combined = {k: np.concatenate([d[k] for d in pieces]) for k in pieces[0]}
+    with np.load(run / "dataset.npz", allow_pickle=False) as cache:
+        for key in ("owner", "y"):
+            if not np.array_equal(combined[key], cache[key]):
+                raise ValueError("Sequence source rows do not match registered typing rows")
+        if not np.array_equal(combined["x"][:, :128], cache["x"]):
+            raise ValueError("Sequence embeddings differ from registered cache")
+    sequence, length = combined["sequences"], combined["lengths"]
+    if (sequence.shape != (len(length), 50, 5) or not np.isfinite(sequence).all()
+            or not np.issubdtype(length.dtype, np.integer) or (length < 1).any() or (length > 50).any()):
+        raise ValueError("Invalid ordered typing windows")
+    valid = np.arange(50)[None, :] < length[:, None]
+    if np.any(sequence[~valid] != 0):
+        raise ValueError("Expected zero-padded source sequences")
+    result = {}
+    for role, data in groups.items():
+        index = data["source_index"]
+        result[role] = {"sequence": sequence[index], "lengths": length[index]}
+    return result, {"source_sha256": hashes, "full_windows": int((length == 50).sum()),
+                    "partial_windows": int((length < 50).sum()),
+                    "features": ["hold_latency", "inter_key_latency", "press_latency", "release_latency", "keycode_div_255"],
+                    "ordering": "Original keystroke order inside each source window only; no cross-window chronology assumed"}
+
+
 def face_arrays(rows):
     return {"x": np.asarray([r["features"] for r in rows], dtype=np.float64),
             "y": np.asarray([r["label"] for r in rows]),
@@ -108,6 +157,36 @@ def participant_weights(owners):
     _, inverse, counts = np.unique(owners, return_inverse=True, return_counts=True)
     weights = 1.0 / counts[inverse]
     return weights / weights.sum()
+
+
+def fixed_participant_pairs(face, typing, seed):
+    """One same-label face person per typist; each typing window appears once.
+
+    Facial people whose recordings have conflicting labels are ineligible. All
+    windows from a typist retain their assigned person and recording thereafter.
+    """
+    rng = np.random.default_rng(seed)
+    face_rows = {owner: np.flatnonzero(face["owner"] == owner) for owner in np.unique(face["owner"])}
+    typing_rows = {owner: np.flatnonzero(typing["owner"] == owner) for owner in np.unique(typing["owner"])}
+    if any(len(set(typing["y"][rows])) != 1 for rows in typing_rows.values()):
+        raise ValueError("Inconsistent typing participant labels")
+    fi, ti = [], []
+    for label in (0, 1):
+        faces = [owner for owner, rows in face_rows.items() if set(face["y"][rows]) == {label}]
+        typists = [owner for owner, rows in typing_rows.items() if set(typing["y"][rows]) == {label}]
+        if not typists or len(faces) < len(typists):
+            raise ValueError("Need enough distinct same-label facial participants for every typist")
+        faces, typists = rng.permutation(faces), rng.permutation(typists)
+        for face_owner, typing_owner in zip(faces, typists):
+            windows = rng.permutation(typing_rows[typing_owner])
+            recordings = rng.permutation(face_rows[face_owner])
+            fi.extend(np.resize(recordings, len(windows)).tolist())
+            ti.extend(windows.tolist())
+    fi, ti = np.asarray(fi, dtype=np.int64), np.asarray(ti, dtype=np.int64)
+    if not np.array_equal(np.sort(ti), np.arange(len(typing["y"]))) or not np.array_equal(face["y"][fi], typing["y"][ti]):
+        raise ValueError("Fixed pairs must cover every typing window exactly once with matching labels")
+    order = rng.permutation(len(ti))
+    return fi[order], ti[order]
 
 
 class PairSampler:

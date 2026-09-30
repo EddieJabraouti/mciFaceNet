@@ -23,6 +23,17 @@ def main(argv=None):
     fusion.add_argument("--typing-run", type=Path, required=True)
     fusion.add_argument("--face-model", type=Path, default=Path("runs/facial_classifier_v1/classifier.json"))
     fusion.add_argument("--output", type=Path, required=True)
+    fixed = sub.add_parser("fusion-train-fixed", help="Train with one typist per facial participant and no window reassignment")
+    fixed.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
+    fixed.add_argument("--typing-run", type=Path, required=True)
+    fixed.add_argument("--face-model", type=Path, default=Path("runs/facial_classifier_v1/classifier.json"))
+    fixed.add_argument("--previous-run", type=Path, default=Path("runs/facial_typing_fusion_v1"))
+    fixed.add_argument("--output", type=Path, required=True)
+    regularized = sub.add_parser("fusion-regularize", help="Compare dropout and sliding-window attention on existing fixed pairs")
+    regularized.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
+    regularized.add_argument("--typing-run", type=Path, required=True)
+    regularized.add_argument("--fixed-run", type=Path, default=Path("runs/facial_typing_fusion_fixed_v1"))
+    regularized.add_argument("--output", type=Path, required=True)
     fused = sub.add_parser("fusion-predict", help="Classify aligned face/typing feature arrays without labels")
     fused.add_argument("--model", type=Path, required=True)
     fused.add_argument("--input", type=Path, required=True, help="NPZ with face [N,42] and typing [N,128]")
@@ -37,13 +48,27 @@ def main(argv=None):
         elif args.command == "fusion-train":
             from .fusion_train import train_fusion
             result = train_fusion(args.data_dir, args.typing_run, args.face_model, args.output)
+        elif args.command == "fusion-train-fixed":
+            from .fusion_fixed import train_fixed_fusion
+            result = train_fixed_fusion(args.data_dir, args.typing_run, args.face_model, args.previous_run, args.output)
+        elif args.command == "fusion-regularize":
+            from .fusion_regularized_train import train_regularized_fusion
+            result = train_regularized_fusion(args.data_dir, args.typing_run, args.fixed_run, args.output)
         elif args.command == "fusion-predict":
             import numpy as np
             from .fusion import FusionClassifier
             from .fusion_data import sha256
-            model = FusionClassifier.load(args.model)
+            import torch
+            bundle = torch.load(args.model, map_location="cpu", weights_only=True)
+            if bundle.get("format_version") == 2:
+                from .fusion_regularized import RegularizedFusionClassifier
+                model = RegularizedFusionClassifier(bundle)
+            else:
+                model = FusionClassifier(bundle)
             with np.load(args.input, allow_pickle=False) as features:
-                probabilities = model.predict_proba(features["face"], features["typing"])
+                extra = ({key: features[key] for key in ("sequence", "lengths") if key in features}
+                         if bundle.get("format_version") == 2 else {})
+                probabilities = model.predict_proba(features["face"], features["typing"], **extra)
             with args.output.open("x") as stream:
                 json.dump({"classes": ["control", "impaired"], "model_sha256": sha256(args.model),
                            "probabilities": probabilities.tolist(),

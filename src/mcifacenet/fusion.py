@@ -36,8 +36,11 @@ class FusionNetwork(nn.Module):
 class FusionClassifier:
     """Feature-input inference: labels and participant matching are never inputs."""
 
+    format_version = 1
+    network_class = FusionNetwork
+
     def __init__(self, bundle):
-        if (bundle.get("format_version") != 1 or bundle.get("classes") != ["control", "impaired"]
+        if (bundle.get("format_version") != self.format_version or bundle.get("classes") != ["control", "impaired"]
                 or bundle.get("face_features") != list(FEATURES) or bundle.get("typing_dimensions") != 128
                 or bundle.get("threshold") != 0.5):
             raise ValueError("Unsupported fusion artifact schema")
@@ -56,7 +59,7 @@ class FusionClassifier:
         for state in bundle["states"]:
             if not all(torch.isfinite(value).all() for value in state.values()):
                 raise ValueError("Nonfinite fusion weights")
-            model = FusionNetwork(**bundle["architecture"])
+            model = self.network_class(**bundle["architecture"])
             model.load_state_dict(state, strict=True)
             model.eval().requires_grad_(False)
             self.models.append(model)

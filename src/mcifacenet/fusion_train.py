@@ -61,6 +61,21 @@ def paired_metrics(y, p, draws):
             "interpretation": "SD measures random pairing variation, not participant uncertainty"}
 
 
+def participant_metrics(y, p, owners):
+    """Average probabilities within each fixed synthetic participant pair."""
+    y, p, owners = np.asarray(y), np.asarray(p), np.asarray(owners)
+    if y.shape != p.shape or y.shape != owners.shape:
+        raise ValueError("Participant metadata must align with predictions")
+    labels, probabilities = [], []
+    for owner in np.unique(owners):
+        mask = owners == owner
+        if len(set(y[mask])) != 1:
+            raise ValueError("Participant has conflicting labels")
+        labels.append(y[mask][0])
+        probabilities.append(p[mask].mean())
+    return classification_metrics(labels, probabilities)
+
+
 def network_scores(model, face, typing):
     result = []
     model.eval()
@@ -70,7 +85,7 @@ def network_scores(model, face, typing):
     return np.concatenate(result)
 
 
-def fit_network(kind, seed, train_face, train_typing, validation, scaling, cfg):
+def fit_network(kind, seed, train_face, train_typing, validation, scaling, cfg, fixed_pairs=None):
     torch.manual_seed(seed)
     model = FusionNetwork(kind, cfg["width"], cfg["heads"], cfg["dropout"])
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["learning_rate"], weight_decay=cfg["weight_decay"])
@@ -80,9 +95,17 @@ def fit_network(kind, seed, train_face, train_typing, validation, scaling, cfg):
         tensors.append(torch.tensor((data["x"] - s["mean"]) / s["scale"], dtype=torch.float32))
     sampler = PairSampler(train_face, train_typing)
     rng = np.random.default_rng(seed)
+    if fixed_pairs is not None:
+        fixed_fi, fixed_ti = fixed_pairs
+        weights = participant_weights(train_typing["owner"][fixed_ti]) * len(fixed_ti)
     best, best_state, history = None, None, []
     for epoch in range(1, cfg["epochs"] + 1):
-        fi, ti = sampler.training(cfg["pairs_per_epoch"], rng)
+        if fixed_pairs is None:
+            fi, ti = sampler.training(cfg["pairs_per_epoch"], rng)
+        else:
+            order = rng.permutation(len(fixed_ti))
+            fi, ti = fixed_fi[order], fixed_ti[order]
+            loss_weights = torch.tensor(weights[order], dtype=torch.float32)
         target = torch.tensor(train_face["y"][fi], dtype=torch.float32)
         model.train()
         losses = []
@@ -90,7 +113,11 @@ def fit_network(kind, seed, train_face, train_typing, validation, scaling, cfg):
             batch = slice(start, start + cfg["batch_size"])
             optimizer.zero_grad()
             logits = model(tensors[0][fi[batch]], tensors[1][ti[batch]])
-            loss = torch.nn.functional.binary_cross_entropy_with_logits(logits, target[batch])
+            if fixed_pairs is None:
+                loss = torch.nn.functional.binary_cross_entropy_with_logits(logits, target[batch])
+            else:
+                loss = (torch.nn.functional.binary_cross_entropy_with_logits(
+                    logits, target[batch], reduction="none") * loss_weights[batch]).mean()
             if not torch.isfinite(loss):
                 raise ValueError("Nonfinite fusion training loss")
             loss.backward()
@@ -99,6 +126,8 @@ def fit_network(kind, seed, train_face, train_typing, validation, scaling, cfg):
             losses.append(loss.item())
         p = network_scores(model, validation["face"], validation["typing"])
         report = paired_metrics(validation["y"], p, validation["draw"])["mean"]
+        if "owner" in validation:
+            report = participant_metrics(validation["y"], p, validation["owner"])
         score = (report["f1"], -report["log_loss"])
         if best is None or score > best:
             best, best_epoch = score, epoch
@@ -108,7 +137,7 @@ def fit_network(kind, seed, train_face, train_typing, validation, scaling, cfg):
                         "pair_indices_sha256": hashlib.sha256(fi.tobytes() + ti.tobytes()).hexdigest()})
     return best_state, {"seed": seed, "best_epoch": best_epoch, "epochs": history,
                         "parameters": sum(p.numel() for p in model.parameters()),
-                        "optimizer_updates": cfg["epochs"] * int(np.ceil(cfg["pairs_per_epoch"] / cfg["batch_size"]))}
+                        "optimizer_updates": cfg["epochs"] * int(np.ceil(len(fi) / cfg["batch_size"]))}
 
 
 def typing_reference(run, output):
