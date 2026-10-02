@@ -11,9 +11,22 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="command", required=True)
     fetch = sub.add_parser("fetch", help="Download and verify pinned public inputs")
     fetch.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
+    extract = sub.add_parser("extract-video", help="Extract versioned AU/geometry signals and 42-feature summaries")
+    extract.add_argument("--manifest", type=Path, default=Path("data/upstream/youtubepd/download_manifest.json"))
+    extract.add_argument("--output", type=Path, required=True)
+    extract.add_argument("--mediapipe-model", type=Path, default=Path("data/extractors/mediapipe/face_landmarker.task"))
+    extract.add_argument("--window-seconds", type=float, default=5.0)
+    extract.add_argument("--stride-seconds", type=float, default=5.0)
+    extract.add_argument("--workers", type=int, default=2)
+    extract.add_argument("--limit", type=int, help="Process the first N available clips for a pilot")
     fit = sub.add_parser("train", help="Train, evaluate, and export a new experiment")
     fit.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
     fit.add_argument("--output", type=Path, required=True)
+    youtube = sub.add_parser("youtube-train", help="Fit the original facial classifiers using only extracted YouTubePD windows")
+    youtube.add_argument("--features-dir", type=Path, default=Path("data/processed/youtubepd_facial_v1"))
+    youtube.add_argument("--manifest", type=Path, default=Path("data/upstream/youtubepd/download_manifest.json"))
+    youtube.add_argument("--recipe", type=Path, default=Path("runs/facial_classifier_v1/protocol.json"))
+    youtube.add_argument("--output", type=Path, required=True)
     predict = sub.add_parser("predict", help="Classify CSV rows with the 42 named features")
     predict.add_argument("--model", type=Path, required=True)
     predict.add_argument("--input", type=Path, required=True)
@@ -42,9 +55,16 @@ def main(argv=None):
     try:
         if args.command == "fetch":
             result = {"verified_files": len(fetch_sources(args.data_dir))}
+        elif args.command == "extract-video":
+            from .video_extract import extract_videos
+            result = extract_videos(args.manifest, args.output, args.mediapipe_model,
+                                    args.window_seconds, args.stride_seconds, args.workers, args.limit)
         elif args.command == "train":
             from .train import train
             result = train(args.data_dir, args.output)
+        elif args.command == "youtube-train":
+            from .youtube_train import train_youtube
+            result = train_youtube(args.features_dir, args.manifest, args.recipe, args.output)
         elif args.command == "fusion-train":
             from .fusion_train import train_fusion
             result = train_fusion(args.data_dir, args.typing_run, args.face_model, args.output)
@@ -91,6 +111,8 @@ def main(argv=None):
                     stream.write("\n")
                 result = {"predictions": len(probabilities), "output": str(args.output)}
         print(json.dumps(result, indent=2, allow_nan=False))
+        if args.command == "extract-video" and result["clips_failed"]:
+            parser.exit(1, "Some clips failed extraction; see progress.json for details.\n")
     except (ValueError, OSError) as exc:
         parser.exit(1, f"Error: {exc}\n")
 

@@ -10,6 +10,11 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
+extract = [
+    "numpy>=2,<3",
+    "mediapipe==0.10.35",
+    "opencv-contrib-python==4.14.0.94",
+]
 train = [
     "numpy>=2,<3",
     "scikit-learn>=1.7,<2",

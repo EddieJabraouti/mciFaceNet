@@ -33,7 +33,12 @@ The input CSV needs all 42 named features listed in
 units and seven facial geometry measures. Column order does not matter. Metadata
 such as IDs and labels is ignored by the classifier. Missing, nonfinite, or
 unexpected `smile_` features are rejected. Each row represents one recording,
-not one frame; raw-video feature extraction is not implemented.
+not one frame. A separate [video extraction pipeline](docs/facial_extraction.md)
+now exports frame-level signals, clip summaries, and configurable window summaries.
+Its numerical compatibility with UFNet's unreleased extractor is unverified;
+matching column names alone does not establish compatibility with saved weights.
+The [YouTubePD-only experiment](docs/youtubepd_classification.md) retrains both
+original classifier architectures on quality-passing five-second video windows.
 
 Predictions contain `p_control`, `p_impaired`, a class decision at the fixed 0.5
 threshold, the source row/ID, and a model fingerprint. The Python API returns
@@ -196,8 +201,9 @@ For custom inference, supply an NPZ containing `face` with shape `[N,42]` in the
 export's named feature order, and `typing` with shape `[N,128]` from the exact
 frozen encoder identified in the artifact. Both arrays must have aligned rows.
 The exported fusion model includes preprocessing and all three neural heads;
-it expects extracted features and does not contain the raw typing encoder or
-video feature extractor. Predictions are uncalibrated model probabilities.
+it expects extracted features and does not bundle the raw typing encoder or
+video extractor into the inference artifact. The separate video extraction
+pipeline is documented above. Predictions are uncalibrated model probabilities.
 
 The underlying test data had already been inspected in earlier experiments.
 This is an exploratory follow-up, and all pairing evaluations depend on known
