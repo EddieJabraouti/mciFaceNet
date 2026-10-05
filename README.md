@@ -1,5 +1,7 @@
 # mciFaceNet
 
+CURRENT STATUS: FINALIZED PIPELINE UNTIL MORE DATA IS AQUIRED THROUGH INSTITUTIONAL CONNECTIONS. EXPORT TBC
+
 Classify recordings from UFNet's 42 extracted facial features and export a
 probability for each observation. Inference needs no personal baseline, recording
 dates, or previous predictions.
