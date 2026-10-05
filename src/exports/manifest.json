@@ -1,0 +1,295 @@
+{
+  "format_version": 1,
+  "release": "gallery_v1",
+  "status": "experimental; not promoted over the two-token model",
+  "modules": {
+    "typenet": {
+      "entrypoint": "exports.typenet.FrozenTypeNet",
+      "checkpoint": "weights/typenet.pt",
+      "checkpoint_sha256": "04b7c11aa4a91fcf8f19027b09527c9962f31a1f4ec68913a0359b18e75696b7",
+      "source_sha256": "e186c4fb737f58636130ede3b5f87c54f95fc4edc5dca9746c9b4c98291fd17c",
+      "input": {
+        "sequence": [
+          "N",
+          50,
+          5
+        ],
+        "lengths": [
+          "N"
+        ]
+      },
+      "output": [
+        "N",
+        128
+      ],
+      "parameters": 200458,
+      "frozen": true
+    },
+    "facial": {
+      "entrypoint": "exports.facial.summarize",
+      "checkpoint": null,
+      "version": "openface-static_mediapipe478_v1",
+      "input": {
+        "measurements": [
+          "usable_frames",
+          14
+        ],
+        "au_presence": [
+          "usable_frames",
+          7
+        ]
+      },
+      "output": [
+        42
+      ],
+      "features": [
+        "smile_AU01_mean",
+        "smile_AU01_var",
+        "smile_AU01_entropy",
+        "smile_AU06_mean",
+        "smile_AU06_var",
+        "smile_AU06_entropy",
+        "smile_AU12_mean",
+        "smile_AU12_var",
+        "smile_AU12_entropy",
+        "smile_AU14_mean",
+        "smile_AU14_var",
+        "smile_AU14_entropy",
+        "smile_AU25_mean",
+        "smile_AU25_var",
+        "smile_AU25_entropy",
+        "smile_AU26_mean",
+        "smile_AU26_var",
+        "smile_AU26_entropy",
+        "smile_AU45_mean",
+        "smile_AU45_var",
+        "smile_AU45_entropy",
+        "smile_eye-open-right_mean",
+        "smile_eye-open-right_var",
+        "smile_eye-open-right_entropy",
+        "smile_eye-open-left_mean",
+        "smile_eye-open-left_var",
+        "smile_eye-open-left_entropy",
+        "smile_eye-raise-right_mean",
+        "smile_eye-raise-right_var",
+        "smile_eye-raise-right_entropy",
+        "smile_eye-raise-left_mean",
+        "smile_eye-raise-left_var",
+        "smile_eye-raise-left_entropy",
+        "smile_mouth-open_mean",
+        "smile_mouth-open_var",
+        "smile_mouth-open_entropy",
+        "smile_mouth-width_mean",
+        "smile_mouth-width_var",
+        "smile_mouth-width_entropy",
+        "smile_jaw-open_mean",
+        "smile_jaw-open_var",
+        "smile_jaw-open_entropy"
+      ],
+      "source_sha256": "7d16bab46523896d19e8967e96b325048092215a99a9880a0347e31e9d1767b9",
+      "training_extractor_parity": "unverified",
+      "video_or_image_input": false
+    },
+    "fusion": {
+      "entrypoint": "exports.fusion.FrozenFusion",
+      "checkpoint": "weights/fusion_gallery.pt",
+      "checkpoint_sha256": "b752d252b176dcfc4b778cdf90fa08dd97a6a37a90c4888d4af3c15a53466adc",
+      "input": {
+        "face": [
+          "N",
+          42
+        ],
+        "typing": [
+          "N",
+          10,
+          128
+        ]
+      },
+      "output": [
+        "N",
+        2
+      ],
+      "classes": [
+        "control",
+        "impaired"
+      ],
+      "threshold": 0.5,
+      "models": 3,
+      "parameters_per_model": 4481,
+      "typing_encoder_sha256": "04b7c11aa4a91fcf8f19027b09527c9962f31a1f4ec68913a0359b18e75696b7",
+      "normalization": "Included; submit unstandardized embeddings and summaries",
+      "frozen": true
+    }
+  },
+  "training_run": "facial_typing_fusion_gallery_v1",
+  "training_protocol_sha256": "7aa82cf789e016b9ac10a6b0d3fae27d4364f74e944f0750d7effb34b8e6278f",
+  "participant_metrics": {
+    "train": {
+      "gallery": {
+        "n": 218,
+        "positive": 100,
+        "accuracy": 0.9311926605504587,
+        "recall": 0.97,
+        "precision": 0.8899082568807339,
+        "f1": 0.9282296650717703,
+        "specificity": 0.8983050847457628,
+        "log_loss": 0.2521301507949829,
+        "brier_score": 0.0656123667060146,
+        "confusion_matrix": [
+          [
+            106,
+            12
+          ],
+          [
+            3,
+            97
+          ]
+        ],
+        "threshold": 0.5
+      },
+      "previous_two_token": {
+        "n": 218,
+        "positive": 100,
+        "accuracy": 0.9311926605504587,
+        "recall": 0.96,
+        "precision": 0.897196261682243,
+        "f1": 0.927536231884058,
+        "specificity": 0.9067796610169492,
+        "log_loss": 0.21839262545108795,
+        "brier_score": 0.055778977048598494,
+        "confusion_matrix": [
+          [
+            107,
+            11
+          ],
+          [
+            4,
+            96
+          ]
+        ],
+        "threshold": 0.5
+      }
+    },
+    "validation": {
+      "gallery": {
+        "n": 31,
+        "positive": 14,
+        "accuracy": 0.7419354838709677,
+        "recall": 0.7142857142857143,
+        "precision": 0.7142857142857143,
+        "f1": 0.7142857142857143,
+        "specificity": 0.7647058823529411,
+        "log_loss": 0.5602401494979858,
+        "brier_score": 0.18703303787683595,
+        "confusion_matrix": [
+          [
+            13,
+            4
+          ],
+          [
+            4,
+            10
+          ]
+        ],
+        "threshold": 0.5
+      },
+      "previous_two_token": {
+        "n": 31,
+        "positive": 14,
+        "accuracy": 0.8064516129032258,
+        "recall": 0.7857142857142857,
+        "precision": 0.7857142857142857,
+        "f1": 0.7857142857142857,
+        "specificity": 0.8235294117647058,
+        "log_loss": 0.5160642862319946,
+        "brier_score": 0.16453754030624937,
+        "confusion_matrix": [
+          [
+            14,
+            3
+          ],
+          [
+            3,
+            11
+          ]
+        ],
+        "threshold": 0.5
+      }
+    },
+    "test": {
+      "gallery": {
+        "n": 64,
+        "positive": 29,
+        "accuracy": 0.84375,
+        "recall": 0.8620689655172413,
+        "precision": 0.8064516129032258,
+        "f1": 0.8333333333333334,
+        "specificity": 0.8285714285714286,
+        "log_loss": 0.4255957305431366,
+        "brier_score": 0.12856462346223635,
+        "confusion_matrix": [
+          [
+            29,
+            6
+          ],
+          [
+            4,
+            25
+          ]
+        ],
+        "threshold": 0.5
+      },
+      "previous_two_token": {
+        "n": 64,
+        "positive": 29,
+        "accuracy": 0.828125,
+        "recall": 0.8275862068965517,
+        "precision": 0.8,
+        "f1": 0.8135593220338984,
+        "specificity": 0.8285714285714286,
+        "log_loss": 0.4336737096309662,
+        "brier_score": 0.13238854834327832,
+        "confusion_matrix": [
+          [
+            29,
+            6
+          ],
+          [
+            5,
+            24
+          ]
+        ],
+        "threshold": 0.5
+      }
+    }
+  },
+  "limitations": [
+    "Synthetic same-label partner assignments; facial and typing subjects are different people",
+    "Participant partners and splits retained; one facial recording chosen per gallery cycles within that same facial participant",
+    "Exactly ten unique cached embeddings per gallery; incomplete gallery tails discarded, no overlapping galleries",
+    "Source sequences may contain fewer than 50 keys; galleries are not necessarily 500 keys or consecutive in time",
+    "No cross-window chronology is asserted; galleries have no positional encodings",
+    "Previously inspected test participants; this is exploratory reuse, not a new untouched test set",
+    "Frozen two-token reference is rescored on identical gallery inputs but was trained on the larger original window pool",
+    "Batch size is 32 galleries, compared with 256 windows in the earlier run; this is not a single-factor architecture comparison",
+    "UFNet prompted-smiling features remain the facial source; new video-extractor numerical parity is unverified",
+    "Uncalibrated probabilities; positive class follows source PD labels"
+  ],
+  "tested_versions": {
+    "numpy": "2.5.3",
+    "torch": "2.14.0",
+    "scikit-learn": "1.9.1"
+  },
+  "files_sha256": {
+    "README.md": "3c91e9a4c37c494ac03ec64aaca12493b3320a91e0bdb5a7eddcc4b630fde031",
+    "__init__.py": "0d2c16f1a6e70a1803660e1a7ba5ec970e9077b7d90bd464451fb8a3db057618",
+    "_fusion.py": "fc2bc681df4999df999126487818d98e900c8566ff8a4ad445fe96408ab524d5",
+    "_integrity.py": "30f665c726c87b9239fe2000d3a4e9ae768e89fde8331786404fc06a320821f4",
+    "_typenet.py": "01666ccabd395e7aec595a249bcf2079d68fa0c52cbfe44d4da55e2797ecbf94",
+    "facial.py": "6257227dc38480573983415b95ccd26d2f329fbde21fd80cecb421a482383c3b",
+    "fusion.py": "fc8c200d45e5cc4f70cae0993f28675b7e91cb2dccab6ca970fc867c9febc173",
+    "typenet.py": "6af78410c38c143a35549327588a7f12f7c11ff05688ba948829f8e5bab87bea",
+    "weights/fusion_gallery.pt": "b752d252b176dcfc4b778cdf90fa08dd97a6a37a90c4888d4af3c15a53466adc",
+    "weights/typenet.pt": "04b7c11aa4a91fcf8f19027b09527c9962f31a1f4ec68913a0359b18e75696b7"
+  }
+}

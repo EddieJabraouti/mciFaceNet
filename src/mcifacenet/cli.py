@@ -47,9 +47,14 @@ def main(argv=None):
     regularized.add_argument("--typing-run", type=Path, required=True)
     regularized.add_argument("--fixed-run", type=Path, default=Path("runs/facial_typing_fusion_fixed_v1"))
     regularized.add_argument("--output", type=Path, required=True)
+    gallery = sub.add_parser("fusion-gallery", help="Train joint attention over ten typing embeddings and one facial token")
+    gallery.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
+    gallery.add_argument("--typing-run", type=Path, required=True)
+    gallery.add_argument("--previous-run", type=Path, default=Path("runs/facial_typing_fusion_regularized_v1"))
+    gallery.add_argument("--output", type=Path, required=True)
     fused = sub.add_parser("fusion-predict", help="Classify aligned face/typing feature arrays without labels")
     fused.add_argument("--model", type=Path, required=True)
-    fused.add_argument("--input", type=Path, required=True, help="NPZ with face [N,42] and typing [N,128]")
+    fused.add_argument("--input", type=Path, required=True, help="NPZ with face [N,42] and typing [N,128], or [N,10,128] for gallery models")
     fused.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
@@ -74,13 +79,19 @@ def main(argv=None):
         elif args.command == "fusion-regularize":
             from .fusion_regularized_train import train_regularized_fusion
             result = train_regularized_fusion(args.data_dir, args.typing_run, args.fixed_run, args.output)
+        elif args.command == "fusion-gallery":
+            from .fusion_gallery_train import train_gallery_fusion
+            result = train_gallery_fusion(args.data_dir, args.typing_run, args.previous_run, args.output)
         elif args.command == "fusion-predict":
             import numpy as np
             from .fusion import FusionClassifier
             from .fusion_data import sha256
             import torch
             bundle = torch.load(args.model, map_location="cpu", weights_only=True)
-            if bundle.get("format_version") == 2:
+            if bundle.get("format_version") == 3:
+                from .fusion_gallery import GalleryFusionClassifier
+                model = GalleryFusionClassifier(bundle)
+            elif bundle.get("format_version") == 2:
                 from .fusion_regularized import RegularizedFusionClassifier
                 model = RegularizedFusionClassifier(bundle)
             else:

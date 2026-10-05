@@ -378,6 +378,44 @@ window/participant metrics are stored in `runs/facial_typing_fusion_regularized_
 `verification.json` records independent metrics, checkpoint reconstruction,
 pairing preservation, source checks, and CLI/export parity.
 
+## Ten-embedding gallery attention
+
+The gallery experiment jointly attends to **one facial token and ten typing
+tokens**. Each typing token represents a distinct cached TypeNet sequence from
+the same typist. After attention, the updated face token and mean updated typing
+tokens feed the classification head. There are no gallery positional encodings
+or claims of cross-window chronology.
+
+```sh
+uv run --extra train mcifacenet fusion-gallery \
+  --typing-run /path/to/typing/prototype_net/exp4/runs/embeddings \
+  --output runs/facial_typing_fusion_gallery_v1
+```
+
+The run preserves existing participant partners and splits. Disjoint galleries
+contain exactly ten embeddings; incomplete tails are excluded. One facial
+recording is selected per gallery from that pair's existing facial records.
+Counts are 829/128/236 galleries and 218/31/64 participant pairs for training,
+validation, and test. Some constituent sequences are shorter than 50 keys.
+
+| Split | Accuracy | Recall | Precision | F1-score |
+|---|---:|---:|---:|---:|
+| Training | 93.1% | 97.0% | 89.0% | 92.8% |
+| Validation | 74.2% | 71.4% | 71.4% | 71.4% |
+| Test | 84.4% | 86.2% | 80.6% | 83.3% |
+
+These are participant-level results from averaging gallery probabilities. The
+existing regularized two-token ensemble, rescored on the identical retained
+inputs, has 93.1%/80.6%/82.8% accuracy. The gallery run gains one correct test
+prediction but loses two validation predictions; it is not promoted over the
+existing model. The reference's training pool was larger, and test participants
+have already been inspected in prior experiments.
+
+Separate portable TypeNet, numerical facial-aggregation, and gallery-fusion
+exports are in [`src/exports/`](src/exports/README.md). Its README documents all
+input contracts. Format-3 `fusion-predict` accepts `face[N,42]` and
+`typing[N,10,128]`; the export includes three 4,481-parameter fusion networks.
+
 ## Checks and attribution
 
 ```sh

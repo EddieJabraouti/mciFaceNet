@@ -46,9 +46,9 @@ def scores(model, tensors, batch_size=256):
                                for start in range(0, len(tensors[0]), batch_size)])
 
 
-def fit_regularized(architecture, seed, train, validation, cfg):
+def fit_regularized(architecture, seed, train, validation, cfg, network_class=RegularizedFusionNetwork):
     torch.manual_seed(seed)
-    model = RegularizedFusionNetwork(**architecture)
+    model = network_class(**architecture)
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg["learning_rate"], weight_decay=cfg["weight_decay"])
     weights = torch.tensor(participant_weights(train["owner"]) * len(train["y"]), dtype=torch.float32)
     target = torch.tensor(train["y"] * (1-cfg["label_smoothing"]) + .5*cfg["label_smoothing"], dtype=torch.float32)
